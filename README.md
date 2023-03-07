@@ -1,5 +1,7 @@
 # gpt_srt_translator
 
+Uses chat gpt API to translate a subtitle file (srt) to a different language
+
 Usage:
 
 Generate API key here: https://platform.openai.com/account/api-keys
