@@ -173,7 +173,7 @@ class GptSrtTranslator():
                 # break dialogs into two lines
                 if text.startswith("-"):
                     second_hyphen = text.find("-", text.find("-") + 1)
-                    if second_hyphen>2:
+                    if second_hyphen>0:
                         text = text[:second_hyphen] + "\n-" + text[second_hyphen+1:]
 
                 else:
