@@ -6,7 +6,15 @@ Usage:
 
 Generate API key here: https://platform.openai.com/account/api-keys
 
-It is enough to have a free account for gpt
+(It is enough to have a free account for gpt)
+
+install the required packages
+
+```
+pip3 install openai beautifulsoup4 tqdm
+```
+
+download GptSrtTranslator.py and put it next to your desired python script.
 
 ```
 from GptSrtTranslator import GptSrtTranslator
