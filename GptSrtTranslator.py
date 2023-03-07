@@ -33,13 +33,29 @@ class GptSrtTranslator():
     ignore_note_sings = True
     # ♪ There is a house in New Orleans ♪
 
-    # Break translated lines into two if they are longer than
-    subtitle_line_max_length = 50
-
     # Use the following characters to detect non-english all caps strings
     all_caps_regex = r"^[A-ZÁÉÍÓÖŐÚÜŰ,.!?\- ]{3,}$"
 
     def __init__(self, **kwargs) -> None:
+        '''
+        Initializes a SubtitleTranslator object with the specified parameters.
+
+        Args:
+            **kwargs: Keyword arguments for the SubtitleTranslator object. Optional arguments include:
+                - api_key: A string representing the OpenAI API key. Defaults to the class attribute API_KEY.
+                - slice_length: An integer representing the number of lines sent for translation in one step. Defaults to 10.
+                - relax_time: How many seconds to wait between chatgpt request. Defaults to 1.
+                - max_tokens: max number of tokens to use in a single go. Defaults to the class attribute MAX_TOKENS.
+                - model_engine: which openai model language to use. Defaults to the class attribute MODEL_ENGINE.
+                - input_language: language of the original subtitle. Defaults to "english".
+                - output_language: language of the target subtitle. Defaults to "hungarian".
+                - subtitle_line_max_length: add a line break if a subtitle line is longer than max . Defaults to 50.
+                - input_file: Source of translation. Defaults to an empty string.
+                - output_file: Target of translation. Defaults to "output.srt".
+
+        Returns:
+            None.
+        '''
         openai.api_key = kwargs.get("api_key", self.API_KEY)
 
         self.srt = {}
@@ -47,10 +63,12 @@ class GptSrtTranslator():
         self.slice_length = kwargs.get("slice_length", 10)
         self.relax_time = kwargs.get("relax_time", 1)
         self.max_tokens = kwargs.get("max_tokens", MAX_TOKENS)
-        self.model_engine = kwargs.get("max_tokens", MODEL_ENGINE)
+        self.model_engine = kwargs.get("model_engine", MODEL_ENGINE)
 
-        self.original_language = kwargs.get("original_language", "english")
-        self.target_language = kwargs.get("target_language", "hungarian")
+        self.input_language = kwargs.get("input_language", "english")
+        self.output_language = kwargs.get("output_language", "hungarian")
+
+        self.subtitle_line_max_length = kwargs.get("subtitle_line_max_length", 50)
 
         self.input_file = kwargs.get("input_file", "")
         self.output_file = kwargs.get("output_file", "output.srt")
@@ -231,12 +249,12 @@ class GptSrtTranslator():
     def chat_gpt_translate(self, text) -> str:
         original_line_count = text.strip().count('\n')+1
 
-        prompt="""Please translate the below """ + self.original_language + """ text,
+        prompt="""Please translate the below """ + self.input_language + """ text,
         make sure you never merge the text from two lines during translation,
         keep the indexes at the beginning of the lines,
         return exactly as many lines as there was in the text to be translated,
         each starting with their original index,
-        be concise and translate the lines into """ + f"{self.target_language}:\n{text}"
+        be concise and translate the lines into """ + f"{self.output_language}:\n{text}"
 
         logging.debug("Sent %d lines for translation", original_line_count)
         logging.debug("\n%s", prompt)
@@ -256,7 +274,6 @@ class GptSrtTranslator():
             )
         except:
             logging.error("Unsuccessful openai operation")
-
             return None
 
         response = completion.choices[0]["message"]["content"].strip()

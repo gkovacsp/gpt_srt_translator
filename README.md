@@ -23,9 +23,11 @@ GptSrtTranslator.API_KEY = "YOUR_API_KEY"
 GptSrtTranslator.MODEL_ENGINE = "gpt-3.5-turbo-0301"
 
 subtitle = GptSrtTranslator(input_file="test.no.srt",
-                            original_language="norwegian",
-                            target_language="english",
-                            output_file="nor-to-eng.srt")
+                            output_file="output.srt",
+                            input_language="norwegian",
+                            output_language="english",
+                            # break after 40 characters
+                            subtitle_line_max_length=40)
 
 subtitle.translate()
 ```
