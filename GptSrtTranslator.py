@@ -18,10 +18,10 @@ logging.basicConfig(
 MODEL_ENGINE = "gpt-3.5-turbo-0301"
 MAX_TOKENS = 2048
 
-class SpgSubtitleTranslator():
+class GptSrtTranslator():
 
-    api_key = "YOURAPIKEY"
-    model_engine = ""
+    API_KEY = None
+    MODEL_ENGINE = None
 
     skip_square_brackets = True
     # [Cheering]
@@ -33,16 +33,21 @@ class SpgSubtitleTranslator():
     ignore_note_sings = True
     # ♪ There is a house in New Orleans ♪
 
+    # Break translated lines into two if they are longer than
     subtitle_line_max_length = 50
 
+    # Use the following characters to detect non-english all caps strings
     all_caps_regex = r"^[A-ZÁÉÍÓÖŐÚÜŰ,.!?\- ]{3,}$"
 
     def __init__(self, **kwargs) -> None:
-        openai.api_key = kwargs.get("api_key", None)
+        openai.api_key = kwargs.get("api_key", self.API_KEY)
+
         self.srt = {}
 
         self.slice_length = kwargs.get("slice_length", 10)
         self.relax_time = kwargs.get("relax_time", 0.5)
+        self.max_tokens = kwargs.get("max_tokens", MAX_TOKENS)
+        self.model_engine = kwargs.get("max_tokens", MODEL_ENGINE)
 
         self.original_language = kwargs.get("original_language", "english")
         self.target_language = kwargs.get("target_language", "hungarian")
@@ -211,7 +216,7 @@ class SpgSubtitleTranslator():
     def chat_gpt_translate(self, text) -> str:
         original_line_count = text.strip().count('\n')+1
 
-        prompt="""Please translate the below text,
+        prompt="""Please translate the below """ + self.original_language + """ text,
         make sure you never merge the text from two lines during translation,
         keep the indexes at the beginning of the lines,
         return exactly as many lines as there was in the text to be translated,
@@ -227,8 +232,8 @@ class SpgSubtitleTranslator():
                 {"role": "user", "content": prompt}
             ],
             # prompt=prompt,
-            model=MODEL_ENGINE,
-            max_tokens=MAX_TOKENS,
+            model=self.model_engine,
+            max_tokens=self.max_tokens,
             temperature=0.5,
             top_p=1,
             frequency_penalty=0,
@@ -258,10 +263,3 @@ class SpgSubtitleTranslator():
                 line_count = log_text.count('\n')+1
                 file.write(f":: {line_count} lines")
 
-if __name__ == "__main__":
-
-    # translate = SpgSubtitleTranslator(input_file="/Volumes/Media/Sorozatok/Taskmaster/Taskmaster {tvdb-298905}/Season 14/Taskmaster - S14E09 - A New Business End - WEBDL-1080p.en.srt")
-    translate = SpgSubtitleTranslator(input_file="test.en.srt")
-    translate.translate()
-
-    print("end")
