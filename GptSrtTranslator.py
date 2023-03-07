@@ -45,7 +45,7 @@ class GptSrtTranslator():
         self.srt = {}
 
         self.slice_length = kwargs.get("slice_length", 10)
-        self.relax_time = kwargs.get("relax_time", 0.5)
+        self.relax_time = kwargs.get("relax_time", 1)
         self.max_tokens = kwargs.get("max_tokens", MAX_TOKENS)
         self.model_engine = kwargs.get("max_tokens", MODEL_ENGINE)
 
@@ -173,8 +173,9 @@ class GptSrtTranslator():
                 # break dialogs into two lines
                 if text.startswith("-"):
                     second_hyphen = text.find("-", text.find("-") + 1)
-                    new_text = text[:second_hyphen] + "\n-" + text[second_hyphen+1:]
-                    text = new_text
+                    if second_hyphen>2:
+                        text = text[:second_hyphen] + "\n-" + text[second_hyphen+1:]
+
                 else:
                     # break long text into two lines
                     text = self.break_subtitle_line(match.group(2))
@@ -195,9 +196,23 @@ class GptSrtTranslator():
 
             text_to_translate = self.get_translatable_text(srt_slice, srt_slice+self.slice_length)
 
-            translated_text = self.chat_gpt_translate(text_to_translate)
+            translated_text = None
+            # try max 5 times
+            counter = 1
 
-            self.save_translated_text(translated_text)
+            while translated_text is None and counter <= 5:
+                if counter > 1:
+                    logging.warning("Tried to translate %d times.", counter)
+                translated_text = self.chat_gpt_translate(text_to_translate)
+                if translated_text is None:
+                    logging.error("Wating for 30sec to overcome rate limitation...")
+                    time.sleep(30)
+                    logging.error("... sleep over")
+                else:
+                    self.save_translated_text(translated_text)
+
+                counter += 1
+
 
         self.save_srt()
 
@@ -227,17 +242,23 @@ class GptSrtTranslator():
         logging.debug("\n%s", prompt)
 
         # Generate a response
-        completion = openai.ChatCompletion.create(
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            model=self.model_engine,
-            max_tokens=self.max_tokens,
-            temperature=0.5,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
-        )
+        try:
+            completion = openai.ChatCompletion.create(
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.model_engine,
+                max_tokens=self.max_tokens,
+                temperature=0.5,
+                top_p=1,
+                frequency_penalty=0,
+                presence_penalty=0
+            )
+        except:
+            logging.error("Unsuccessful openai operation")
+
+            return None
+
         response = completion.choices[0]["message"]["content"].strip()
         response_line_count = response.count('\n')+1
         logging.debug("Returned %d lines", response.count('\n')+1)
