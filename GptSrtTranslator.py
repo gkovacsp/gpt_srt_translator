@@ -231,7 +231,6 @@ class GptSrtTranslator():
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            # prompt=prompt,
             model=self.model_engine,
             max_tokens=self.max_tokens,
             temperature=0.5,
@@ -251,15 +250,3 @@ class GptSrtTranslator():
 
         time.sleep(self.relax_time)
         return response
-
-    def log(self, action, log_text=""):
-        log_text = log_text.strip()
-
-        with open('log.txt', 'a', encoding="utf8") as file:
-            file.write('------------------\n')
-            if len(log_text) > 1:
-                file.write(f'Action: {action}\n')
-                file.write(f'{log_text}\n')
-                line_count = log_text.count('\n')+1
-                file.write(f":: {line_count} lines")
-
