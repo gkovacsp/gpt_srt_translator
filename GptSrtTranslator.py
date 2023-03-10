@@ -61,14 +61,14 @@ class GptSrtTranslator():
         self.srt = {}
 
         self.slice_length = kwargs.get("slice_length", 10)
-        self.relax_time = kwargs.get("relax_time", 1)
+        self.relax_time = kwargs.get("relax_time", 2)
         self.max_tokens = kwargs.get("max_tokens", MAX_TOKENS)
         self.model_engine = kwargs.get("model_engine", MODEL_ENGINE)
 
         self.input_language = kwargs.get("input_language", "english")
         self.output_language = kwargs.get("output_language", "hungarian")
 
-        self.subtitle_line_max_length = kwargs.get("subtitle_line_max_length", 50)
+        self.subtitle_line_max_length = kwargs.get("subtitle_line_max_length", 40)
 
         self.input_file = kwargs.get("input_file", "")
         self.output_file = kwargs.get("output_file", "output.srt")
@@ -189,7 +189,7 @@ class GptSrtTranslator():
                 text = match.group(2)
 
                 # break dialogs into two lines
-                if text.startswith("-"):
+                if text.startswith("-") and text.find("-", text.find("-") + 1) > 1:
                     second_hyphen = text.find("-", text.find("-") + 1)
                     if second_hyphen>0:
                         text = text[:second_hyphen] + "\n-" + text[second_hyphen+1:]
