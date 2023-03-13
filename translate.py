@@ -8,8 +8,9 @@ from GptSrtTranslator import GptSrtTranslator
 GptSrtTranslator.API_KEY = secret_api.openai_api_key
 GptSrtTranslator.MODEL_ENGINE = "gpt-3.5-turbo-0301"
 
-subtitle = GptSrtTranslator(input_file="test.no.srt",
+subtitle = GptSrtTranslator(input_file="kb-full.no.srt",
                             original_language="norwegian",
                             target_language="english")
 
+subtitle.slice_length = 30
 subtitle.translate()

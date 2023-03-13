@@ -1,4 +1,5 @@
 .venv
+.vscode
 __pycache__
 app.log
 secret_api.py

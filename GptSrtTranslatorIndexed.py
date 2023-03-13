@@ -18,7 +18,7 @@ logging.basicConfig(
 MODEL_ENGINE = "gpt-3.5-turbo-0301"
 MAX_TOKENS = 2048
 
-class GptSrtTranslator():
+class GptSrtTranslatorIndexed():
 
     API_KEY = None
     MODEL_ENGINE = None
@@ -43,7 +43,6 @@ class GptSrtTranslator():
         openai.api_key = kwargs.get("api_key", self.API_KEY)
 
         self.srt = {}
-        self.srt_index = {}
 
         self.slice_length = kwargs.get("slice_length", 10)
         self.relax_time = kwargs.get("relax_time", 0.5)
@@ -62,12 +61,6 @@ class GptSrtTranslator():
 
         if self.input_file:
             self.load_srt()
-
-        with open('01-out.txt', mode='w', encoding="utf8") as file:
-            file.write("")
-        with open('02-in.txt', mode='w', encoding="utf8") as file:
-            file.write("")
-
 
     def load_srt(self) -> None:
         with open(self.input_file, 'r', encoding="utf8") as f:
@@ -108,9 +101,8 @@ class GptSrtTranslator():
                         "index": index,
                         "timestamp": parts[i+1].strip(),
                         "original": parts[i+2].strip(),
-                        "translated": ""
+                        "translated": parts[i+2].strip()
                     }
-                    self.srt_index[self.srt[index]["timestamp"]] = index
                 except KeyError:
                     print("index error")
 
@@ -132,9 +124,7 @@ class GptSrtTranslator():
                 if "♪" in self.srt[i]["original"]:
                     continue
 
-            # total += str(i) + ": " + self.srt[i]["original"].replace("\n", " ")+"\n"
-            clean_subtitle = self.srt[i]['original'].replace('\n', ' ') + "\n"
-            total += f"[{self.srt[i]['timestamp']}] {clean_subtitle}"
+            total += str(i) + ": " + self.srt[i]["original"].replace("\n", " ")+"\n"
 
 
         # remove all html tags
@@ -173,24 +163,23 @@ class GptSrtTranslator():
             if len(line) == 0:
                 continue
 
-            pattern = r"\[(.*?)\] (.*)"
-            match = re.search(pattern, line)
+            # find index at the beginning of the line
+            match = re.match(r'^(\d+): (.*)$', line.strip())
 
             if match:
-                timestamp = match.group(1)
-                translated_subtitle = match.group(2)
+                part_index = int(match.group(1))
+                text = match.group(2)
 
                 # break dialogs into two lines
-                if translated_subtitle.startswith("-"):
-                    second_hyphen = translated_subtitle.find("-", translated_subtitle.find("-") + 1)
-                    new_text = translated_subtitle[:second_hyphen] + "\n-" + translated_subtitle[second_hyphen+1:]
-                    translated_subtitle = new_text
+                if text.startswith("-"):
+                    second_hyphen = text.find("-", text.find("-") + 1)
+                    new_text = text[:second_hyphen] + "\n-" + text[second_hyphen+1:]
+                    text = new_text
                 else:
                     # break long text into two lines
-                    translated_subtitle = self.break_subtitle_line(translated_subtitle)
+                    text = self.break_subtitle_line(match.group(2))
 
-                subtitle_index = self.srt_index[timestamp]
-                self.srt[subtitle_index]["translated"] = translated_subtitle
+                self.srt[part_index]["translated"] = text
 
     def translate(self):
         # translate the subtitle, show a progress bar during translation
@@ -206,13 +195,7 @@ class GptSrtTranslator():
 
             text_to_translate = self.get_translatable_text(srt_slice, srt_slice+self.slice_length)
 
-            with open('01-out.txt', mode='a', encoding="utf8") as file:
-                file.write(text_to_translate)
-
             translated_text = self.chat_gpt_translate(text_to_translate)
-
-            with open('02-in.txt', mode='a', encoding="utf8") as file:
-                file.write(translated_text+"\n")
 
             self.save_translated_text(translated_text)
 
@@ -235,8 +218,9 @@ class GptSrtTranslator():
 
         prompt="""Please translate the below """ + self.original_language + """ text,
         make sure you never merge the text from two lines during translation,
-        keep data between square brackets intact,
+        keep the indexes at the beginning of the lines,
         return exactly as many lines as there was in the text to be translated,
+        each starting with their original index,
         be concise and translate the lines into """ + f"{self.target_language}:\n{text}"
 
         logging.debug("Sent %d lines for translation", original_line_count)
@@ -266,7 +250,6 @@ class GptSrtTranslator():
             logging.debug("\n%s", response)
 
         time.sleep(self.relax_time)
-
         return response
 
     def log(self, action, log_text=""):
@@ -279,3 +262,4 @@ class GptSrtTranslator():
                 file.write(f'{log_text}\n')
                 line_count = log_text.count('\n')+1
                 file.write(f":: {line_count} lines")
+
