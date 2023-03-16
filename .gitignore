@@ -6,3 +6,7 @@ secret_api.py
 01*
 02*
 *.srt
+ignore
+build
+dist
+*.spec
