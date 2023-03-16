@@ -204,7 +204,7 @@ class GptSrtTranslator():
                 translated_subtitle = match.group(2)
 
                 # break dialogs into two lines
-                if translated_subtitle.startswith("-"):
+                if translated_subtitle.startswith("-") and translated_subtitle[2:].find("-"):
                     second_hyphen = translated_subtitle.find("-", translated_subtitle.find("-") + 1)
                     new_text = translated_subtitle[:second_hyphen] + "\n-" + translated_subtitle[second_hyphen+1:]
                     translated_subtitle = new_text
