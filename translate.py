@@ -1,6 +1,11 @@
+import logging
+
 from GptSrtTranslator import GptSrtTranslator
 
 import secret_api
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 # Generate API key here: https://platform.openai.com/account/api-keys
 # It is enough to have a free account for gpt

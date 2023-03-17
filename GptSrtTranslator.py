@@ -82,7 +82,6 @@ class GptSrtTranslator():
             with open('02-translated.txt', mode='w', encoding="utf8") as file:
                 file.write("")
 
-
     def load_srt(self) -> None:
         with open(self.input_file, 'r', encoding="utf8") as f:
             srt_text = f.read()
@@ -101,7 +100,7 @@ class GptSrtTranslator():
 
             # Load srt into an object
             self.srt = {}
-            index = 0
+            index = 1
             for i in range(0,len(parts), 3):
                 timestamp = parts[i+1].strip()
                 original = parts[i+2].strip()
@@ -139,57 +138,71 @@ class GptSrtTranslator():
 
                 index += 1
 
-    def get_translatable_text(self, start, end) -> str:
+    def get_translatable_text(self, start:int, buffer:int=5) -> str:
         # create a simplified text structure so chatgpt will be able process it
         total = ""
-        for i in range(start, end):
-            if i >= len(self.srt):
-                break
+        index = start
 
+        while True:
             # Skip musical parts indicated with: *
             if self.ignore_asterisks:
-                if self.srt[i]["original"].strip().startswith("*"):
+                if self.srt[index]["original"].strip().startswith("*"):
                     continue
             # Skip musical parts indicated with: ♪
             if self.ignore_note_sings:
-                if "♪" in self.srt[i]["original"]:
+                if "♪" in self.srt[index]["original"]:
                     continue
 
-            # total += str(i) + ": " + self.srt[i]["original"].replace("\n", " ")+"\n"
-            clean_subtitle = self.srt[i]['original'].replace('\n', ' ') + "\n"
-            total += f"[{self.srt[i]['timestamp']}] {clean_subtitle}"
+            clean_subtitle = self.srt[index]['original'].replace('\n', ' ') + "\n"
+            total += f"[{self.srt[index]['timestamp']}] {clean_subtitle}"
 
+            if index > start + self.slice_length:
+                # wait for an end of a sentence
+                if total.strip()[-1] in ".?!:\"\'":
+                    # end of last line is an end of a sentence
+                    break
+
+                if index+1 in self.srt and  self.srt[index+1]['original'][0].isupper():
+                    # next line starts with a capital letter, this line is probably and end of a sentence
+                    break
+
+                if index  > start + self.slice_length + buffer:
+                    # checked forward until the max, stop adding extra lines
+                    break
+
+            index = index + 1
+            if index not in self.srt or index > len(self.srt):
+                break
 
         # remove all html tags
         soup = BeautifulSoup(total, "html.parser")
-        return soup.get_text()
+        return (
+            index + 1,          # Next index to translate
+            soup.get_text()     # Translateable text
+        )
 
     def break_subtitle_line(self, text):
-        """Breaks a subtitle line into two lines if it is longer than the specified maximum length.
-        Ignores any HTML tags in the line.
-        """
+        """Breaks a subtitle line into two lines if it is longer than the specified maximum length."""
         if len(text) <= self.subtitle_line_max_length:
             return text
 
-        first_line = ''
-        second_line = ''
+        mid = len(text) // 2
+        left = text[:mid]
+        right = text[mid:]
+        last_space = left.rfind(' ')
+        first_space = right.find(' ')
 
-        half_length = math.ceil(len(text) / 2)
-        first_half = text[:half_length]
-        last_space_index = first_half.rfind(' ')
-        first_line_end = half_length if last_space_index == -1 else last_space_index
-        first_line = text[:first_line_end].strip()
-        second_line = text[first_line_end:].strip()
+        if last_space == -1 and first_space == -1:
+            return text
 
-        # return both lines connected with a line break
-        if second_line:
-            return f"{first_line}\n{second_line}"
+        if mid-last_space < first_space:
+            new_text = left[:last_space].strip() + '\n' + (left[last_space+1:] + right).strip()
+        else:
+            new_text = (left + right[:first_space]).strip() + "\n" + right[first_space+1:].strip()
 
-        # second line is empty, return only the first one
-        return first_line
+        return new_text
 
     def save_translated_text(self, text):
-
         # process text received from chatgpt
         for line in text.split('\n'):
             # skip empty lines
@@ -204,7 +217,7 @@ class GptSrtTranslator():
                 translated_subtitle = match.group(2)
 
                 # break dialogs into two lines
-                if translated_subtitle.startswith("-") and translated_subtitle[2:].find("-"):
+                if translated_subtitle.startswith("-") and translated_subtitle[2:-2].find("-") > 0:
                     second_hyphen = translated_subtitle.find("-", translated_subtitle.find("-") + 1)
                     new_text = translated_subtitle[:second_hyphen] + "\n-" + translated_subtitle[second_hyphen+1:]
                     translated_subtitle = new_text
@@ -227,12 +240,16 @@ class GptSrtTranslator():
         else:
             title = "video"
 
-        for srt_slice in tqdm(range(0, len(self.srt), self.slice_length), bar_format='{l_bar}{bar:40}{r_bar}', desc=title.ljust(10)):
-            logger.info("Slice: %d - %d of %d", srt_slice, srt_slice+self.slice_length-1, len(self.srt))
+        index = 1
+        progress_subtitle = tqdm(total=len(self.srt), bar_format='{l_bar}{bar:40}{r_bar}', desc=title.ljust(10))
 
-            text_to_translate = self.get_translatable_text(srt_slice, srt_slice+self.slice_length)
+        while index < len(self.srt):
+            logger.info("Slice: %d, %d pieces, total %d", index, self.slice_length, len(self.srt))
+
+            index, text_to_translate = self.get_translatable_text(index)
+
             if logger.isEnabledFor(logging.DEBUG):
-                with open('01-out.txt', mode='a', encoding="utf8") as file:
+                with open('01-original.txt', mode='a', encoding="utf8") as file:
                     new_string = ''
                     for line in text_to_translate.split('\n'):
                         if ']' in line:
@@ -241,22 +258,37 @@ class GptSrtTranslator():
                         new_string += line + '\n'
 
                     file.write(new_string.strip()+"\n")
+                    file.write("-"*40 + "\n")
 
             translated_text = None
+            error_found = None
 
-            # try translation max 5 times
-            counter = 1
-            while translated_text is None and counter <= 5:
-                if counter > 1:
-                    logger.warning("Tried to translate %d times.", counter)
+            relax_delay = 10
+
+            while (error_found or translated_text is None) and relax_delay <= 640:
+
                 translated_text = self.chat_gpt_translate(text_to_translate)
+                error_found = False
                 if translated_text is None:
-                    logger.error("Wating for 30sec to overcome rate limitation...")
-                    time.sleep(30)
-                    logger.error("... sleep over")
+                    logger.error("Error during translation, wating for %d sec to overcome rate limitation...", relax_delay)
+                    error_found = True
+                elif translated_text.count("\n") < self.slice_length / 2:
+                    # too few lines were returned
+                    logger.error("Short string was returned, wating for %d sec to overcome rate limitation...", relax_delay)
+                    error_found = True
+                elif "Translated subtitle" in translated_text:
+                    logger.error("Instruction was returned, wating for %d sec to cool down...", relax_delay)
+                    error_found = True
+
+                if error_found:
+                    time.sleep(relax_delay)
+                    logger.error("Trying again...")
+                    relax_delay += relax_delay
                 else:
+                    self.save_translated_text(translated_text)
+
                     if logger.isEnabledFor(logging.DEBUG):
-                        with open('02-in.txt', mode='a', encoding="utf8") as file:
+                        with open('02-translated.txt', mode='a', encoding="utf8") as file:
                             new_string = ''
                             for line in translated_text.split('\n'):
                                 if ']' in line:
@@ -265,19 +297,18 @@ class GptSrtTranslator():
                                 new_string += line + '\n'
 
                             file.write(new_string.strip()+"\n")
-
-                    self.save_translated_text(translated_text)
-
-                counter += 1
+                            file.write("-"*40 + "\n")
 
 
-        self.save_srt()
+            progress_subtitle.update(index-progress_subtitle.n)
+
+            self.save_srt()
 
     def save_srt(self):
         srt_content = ""
 
         for index, subtitle in self.srt.items():
-            srt_content += f"{index+1}\n"
+            srt_content += f"{index}\n"
             srt_content += f"{subtitle['timestamp']}\n"
             srt_content += f"{subtitle['translated']}\n"
             srt_content += "\n"
@@ -287,13 +318,6 @@ class GptSrtTranslator():
 
     def chat_gpt_translate(self, text) -> str:
         original_line_count = text.strip().count('\n')+1
-
-        # prompt="""Please translate the below """ + self.input_language + """ text,
-        # make sure you never merge the text from two lines during translation,
-        # keep data between square brackets intact,
-        # return exactly as many lines as there was in the text to be translated.
-        # Please always keep all the lines with square brackets.
-        # Be concise and translate the lines into """ + f"{self.output_language}:\n{text}"
 
         prompt='''You are a program responsible for translating subtitles.
         Your task is to output the specified target language based on the input text.
@@ -321,18 +345,19 @@ class GptSrtTranslator():
                 temperature=0.5,
                 top_p=1,
                 frequency_penalty=0,
-                presence_penalty=0
+                presence_penalty=0,
+                timeout=60
             )
-        except:
-            logger.error("Unsuccessful openai operation")
+        except Exception as e:
+            logger.error("Unsuccesful OpenAI operation. Error: %s", e)
             return None
 
         response = completion.choices[0]["message"]["content"].strip()
         response_line_count = response.count('\n')+1
         logger.debug("Returned %d lines", response.count('\n')+1)
         if response_line_count != original_line_count:
-            logger.warning("Missing %d lines", original_line_count - response_line_count)
-            logger.warning("\n\nOriginal:\n%s\nTranslated:\n%s\n\n", text, response)
+            logger.warning("Missing %d line(s)", original_line_count - response_line_count)
+            # logger.debug("\n\nOriginal:\n%s\nTranslated:\n%s\n\n", text, response)
 
         time.sleep(self.relax_time)
 
