@@ -146,10 +146,12 @@ class GptSrtTranslator():
             # Skip musical parts indicated with: *
             if self.ignore_asterisks:
                 if self.srt[index]["original"].strip().startswith("*"):
+                    index = index + 1
                     continue
             # Skip musical parts indicated with: ♪
             if self.ignore_note_sings:
                 if "♪" in self.srt[index]["original"]:
+                    index = index + 1
                     continue
 
             clean_subtitle = self.srt[index]['original'].replace('\n', ' ') + "\n"
