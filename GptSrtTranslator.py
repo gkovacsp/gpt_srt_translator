@@ -288,12 +288,24 @@ class GptSrtTranslator():
     def chat_gpt_translate(self, text) -> str:
         original_line_count = text.strip().count('\n')+1
 
-        prompt="""Please translate the below """ + self.input_language + """ text,
-        make sure you never merge the text from two lines during translation,
-        keep data between square brackets intact,
-        return exactly as many lines as there was in the text to be translated.
-        Please always keep all the lines with square brackets.
-        Be concise and translate the lines into """ + f"{self.output_language}:\n{text}"
+        # prompt="""Please translate the below """ + self.input_language + """ text,
+        # make sure you never merge the text from two lines during translation,
+        # keep data between square brackets intact,
+        # return exactly as many lines as there was in the text to be translated.
+        # Please always keep all the lines with square brackets.
+        # Be concise and translate the lines into """ + f"{self.output_language}:\n{text}"
+
+        prompt='''You are a program responsible for translating subtitles.
+        Your task is to output the specified target language based on the input text.
+        Please do not create the following subtitles on your own.
+        Please do not output any text other than the translation.
+        You will receive the subtitles as lines of text to be translated.
+        Please always keep the timestamp at the beginning of the lines intact and
+        always put the translated text into the line matching the original timestamp.
+        If you need to merge the subtitles with the following line, simply repeat the translation.'''
+        prompt += f"Original language: {self.input_language}\n"
+        prompt += f"{text}Target language: {self.output_language}\n\n"
+        prompt += f"{text}"
 
         logger.debug("Sent %d lines for translation", original_line_count)
         logger.debug("\n%s", prompt)
