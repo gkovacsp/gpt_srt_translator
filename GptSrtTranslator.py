@@ -143,6 +143,9 @@ class GptSrtTranslator():
         index = start
 
         while True:
+            if index > len(self.srt):
+                break
+
             # Skip musical parts indicated with: *
             if self.ignore_asterisks:
                 if self.srt[index]["original"].strip().startswith("*"):
