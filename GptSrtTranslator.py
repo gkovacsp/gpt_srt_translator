@@ -276,12 +276,9 @@ class GptSrtTranslator():
                 if translated_text is None:
                     logger.error("Error during translation, wating for %d sec to overcome rate limitation...", relax_delay)
                     error_found = True
-                elif translated_text.count("\n") < self.slice_length / 2:
+                elif translated_text.count("\n") < 2:
                     # too few lines were returned
                     logger.error("Short string was returned, wating for %d sec to overcome rate limitation...", relax_delay)
-                    error_found = True
-                elif "Translated subtitle" in translated_text:
-                    logger.error("Instruction was returned, wating for %d sec to cool down...", relax_delay)
                     error_found = True
 
                 if error_found:
@@ -330,7 +327,8 @@ class GptSrtTranslator():
         You will receive the subtitles as lines of text to be translated.
         Please always keep the timestamp at the beginning of the lines intact and
         always put the translated text into the line matching the original timestamp.
-        If you need to merge the subtitles with the following line, simply repeat the translation.'''
+        If you need to merge the subtitles with the following line, simply repeat the translation.
+        Be concise.'''
         prompt += f"Original language: {self.input_language}\n"
         prompt += f"{text}Target language: {self.output_language}\n\n"
         prompt += f"{text}"
