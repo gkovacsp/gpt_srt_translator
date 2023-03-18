@@ -31,3 +31,7 @@ subtitle = GptSrtTranslator(input_file="test.no.srt",
 
 subtitle.translate()
 ```
+
+Sometimes it merges two subtitles into one causing a shift in the upcoming 1-3 subtitles. Then it sorts itself out and timing is restored.
+
+A little manual compare at the end can easily fix these.
