@@ -9,7 +9,35 @@ from tqdm import tqdm
 logger = logging.getLogger()
 
 MODEL_ENGINE = "gpt-3.5-turbo-0301"
-MAX_TOKENS = 2048
+MAX_TOKENS = 3000
+
+class TqdmLoggingHandler(logging.Handler):
+    def __init__(self, level=logging.NOTSET):
+        super().__init__(level)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg)
+            self.flush()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+# create file handler for DEBUG level
+file_handler = logging.FileHandler('app.log', mode='w')
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter('%(asctime)s %(levelname)s %(module)-12s %(message)s')
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+
+logger.addHandler(TqdmLoggingHandler(level=logging.WARNING))
+
+logger.info("spg logging started")
 
 class GptSrtTranslator():
 
@@ -82,6 +110,7 @@ class GptSrtTranslator():
                 file.write("")
 
     def load_srt(self) -> None:
+        self.log("Loading srt")
         with open(self.input_file, 'r', encoding="utf8") as f:
             srt_text = f.read()
             # Split the text at every integer which is followed by a timestamp
@@ -133,9 +162,11 @@ class GptSrtTranslator():
                     time_index = self.srt[index]["timestamp"].split(" --> ")[0]
                     self.srt_index[time_index] = index
                 except KeyError:
-                    print("index error")
+                    logger.error("Index not found in SRT: %s", index)
 
                 index += 1
+
+        self.log(f"Loaded {len(self.srt)} subtitles")
 
     def get_translatable_text(self, start:int, buffer:int=5) -> str:
         # create a simplified text structure so chatgpt will be able process it
@@ -244,6 +275,8 @@ class GptSrtTranslator():
         else:
             title = "video"
 
+        self.log("Starting translation")
+
         index = 1
         progress_subtitle = tqdm(total=len(self.srt), bar_format='{l_bar}{bar:40}{r_bar}', desc=title.ljust(10))
 
@@ -319,22 +352,23 @@ class GptSrtTranslator():
 
     def chat_gpt_translate(self, text) -> str:
         original_line_count = text.strip().count('\n')+1
+        self.log(f"Sent {original_line_count} lines")
 
         prompt='''You are a program responsible for translating subtitles.
-        Your task is to output the specified target language based on the input text.
-        Please do not create the following subtitles on your own.
-        Please do not output any text other than the translation.
-        You will receive the subtitles as lines of text to be translated.
-        Please always keep the timestamp at the beginning of the lines intact and
-        always put the translated text into the line matching the original timestamp.
-        If you need to merge the subtitles with the following line, simply repeat the translation.
-        Be concise.'''
+Your task is to output the specified target language based on the input text.
+Please do not create the following subtitles on your own.
+Please do not output any text other than the translation.
+You will receive the subtitles as lines of text to be translated.
+Please always keep the timestamp at the beginning of the lines intact and
+always put the translated text into the line matching the original timestamp.
+If you need to merge the subtitles with the following line, simply repeat the translation.
+Be concise.\n'''
         prompt += f"Original language: {self.input_language}\n"
-        prompt += f"{text}Target language: {self.output_language}\n\n"
+        prompt += f"Target language: {self.output_language}\n"
         prompt += f"{text}"
 
         logger.debug("Sent %d lines for translation", original_line_count)
-        logger.debug("\n%s", prompt)
+        logger.debug("Prompt:\n\n%s\n", prompt)
 
         # Generate a response
         try:
@@ -351,16 +385,22 @@ class GptSrtTranslator():
                 timeout=60
             )
         except Exception as e:
-            logger.error("Unsuccesful OpenAI operation. Error: %s", e)
+            logger.error("Unsuccesful OpenAI operation, see debug log")
+            logger.debug("Unsuccesful OpenAI operation. Error: %s", e)
             return None
 
         response = completion.choices[0]["message"]["content"].strip()
         response_line_count = response.count('\n')+1
         logger.debug("Returned %d lines", response.count('\n')+1)
-        if response_line_count != original_line_count:
+        logger.debug("Translation:\n\n%s\n\n", response)
+        if response_line_count < original_line_count:
             logger.warning("Missing %d line(s)", original_line_count - response_line_count)
-            # logger.debug("\n\nOriginal:\n%s\nTranslated:\n%s\n\n", text, response)
+        elif response_line_count > original_line_count:
+            logger.info("Extra %d line(s)", response_line_count - original_line_count)
 
         time.sleep(self.relax_time)
 
         return response
+
+    def log(self, message):
+            tqdm.write(message)
