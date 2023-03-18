@@ -285,6 +285,11 @@ class GptSrtTranslator():
 
             index, text_to_translate = self.get_translatable_text(index)
 
+            if len(text_to_translate) < 10:
+                # No more lines
+                progress_subtitle.update(progress_subtitle.total-progress_subtitle.n)
+                break
+
             if logger.isEnabledFor(logging.DEBUG):
                 with open('01-original.txt', mode='a', encoding="utf8") as file:
                     new_string = ''
@@ -337,6 +342,9 @@ class GptSrtTranslator():
             progress_subtitle.update(index-progress_subtitle.n)
 
             self.save_srt()
+
+        self.log("Translation completed")
+        progress_subtitle.close()
 
     def save_srt(self):
         srt_content = ""
