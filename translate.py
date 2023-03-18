@@ -13,12 +13,12 @@ logger.setLevel(logging.DEBUG)
 GptSrtTranslator.API_KEY = secret_api.openai_api_key
 GptSrtTranslator.MODEL_ENGINE = "gpt-3.5-turbo-0301"
 
-subtitle = GptSrtTranslator(input_file="kb-s07e09.no.srt",
-                            output_file="output.srt",
-                            input_language="norwegian",
-                            output_language="english",
+subtitle = GptSrtTranslator(input_file="input.en.srt",
+                            output_file="output.hu.srt",
+                            input_language="English",
+                            output_language="Hungarian",
                             # break after 40 characters
                             subtitle_line_max_length=40)
 
-subtitle.slice_length = 15
+subtitle.slice_length = 25
 subtitle.translate()
