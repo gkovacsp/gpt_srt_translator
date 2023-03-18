@@ -411,4 +411,4 @@ Be concise.\n'''
         return response
 
     def log(self, message):
-            tqdm.write(message)
+        tqdm.write(message)
