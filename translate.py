@@ -1,6 +1,6 @@
 import logging
 
-from GptSrtTranslator import GptSrtTranslator
+from GptSrtTranslator2 import GptSrtTranslator
 
 import secret_api
 

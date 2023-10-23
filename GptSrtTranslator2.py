@@ -10,7 +10,7 @@ from aligner import Aligner
 
 logger = logging.getLogger()
 
-MODEL_ENGINE = "gpt-3.5-turbo-0301"
+MODEL_ENGINE = "gpt-3.5-turbo"
 MAX_TOKENS = 3000
 
 class TqdmLoggingHandler(logging.Handler):
@@ -195,8 +195,8 @@ class GptSrtTranslator():
                     continue
 
             clean_subtitle = self.srt[index]['original'].replace('\n', ' ') + "\n"
-            total += f"[{self.srt[index]['timestamp']}] {clean_subtitle}"
-            self.to_translate.append(clean_subtitle)
+            total += f"{clean_subtitle}"
+            self.to_translate.append([self.srt[index]['timestamp'], clean_subtitle])
 
             if index >= start + self.slice_length -1:
                 # wait for an end of a sentence
@@ -246,35 +246,29 @@ class GptSrtTranslator():
 
     def save_translated_text(self, text):
         # process text received from chatgpt
-        self.from_translate = []
 
-        for line in text.split('\n'):
-            # skip empty lines
-            if len(line) == 0:
-                continue
+        for index, line in enumerate(text.split('\n')):
+            # # skip empty lines
+            # if len(line) == 0:
+            #     continue
 
-            pattern = r"\[(.*) -->.*\] (.*)"
-            match = re.search(pattern, line)
+            timestamp = self.to_translate[index][0][0:12]
+            translated_subtitle = line
 
-            if match:
-                timestamp = match.group(1)
-                translated_subtitle = match.group(2)
-                self.from_translate.append(translated_subtitle)
+            # break dialogs into two lines
+            if translated_subtitle.startswith("-") and translated_subtitle[2:-2].find("-") > 0:
+                second_hyphen = translated_subtitle.find("-", translated_subtitle.find("-") + 1)
+                new_text = translated_subtitle[:second_hyphen] + "\n-" + translated_subtitle[second_hyphen+1:]
+                translated_subtitle = new_text
+            else:
+                # break long text into two lines
+                translated_subtitle = self.break_subtitle_line(translated_subtitle)
 
-                # break dialogs into two lines
-                if translated_subtitle.startswith("-") and translated_subtitle[2:-2].find("-") > 0:
-                    second_hyphen = translated_subtitle.find("-", translated_subtitle.find("-") + 1)
-                    new_text = translated_subtitle[:second_hyphen] + "\n-" + translated_subtitle[second_hyphen+1:]
-                    translated_subtitle = new_text
-                else:
-                    # break long text into two lines
-                    translated_subtitle = self.break_subtitle_line(translated_subtitle)
-
-                if timestamp in self.srt_index:
-                    subtitle_index = self.srt_index[timestamp]
-                    self.srt[subtitle_index]["translated"] = translated_subtitle
-                else:
-                    logger.warning("Timestamp was not found when saving translated text: %s", timestamp)
+            if timestamp in self.srt_index:
+                subtitle_index = self.srt_index[timestamp]
+                self.srt[subtitle_index]["translated"] = translated_subtitle
+            else:
+                logger.warning("Timestamp was not found when saving translated text: %s", timestamp)
 
     def translate(self):
         # translate the subtitle, show a progress bar during translation
@@ -414,20 +408,14 @@ Be concise.\n'''
 
         if response_line_count < original_line_count:
             logger.warning("Missing %d line(s)", original_line_count - response_line_count)
-            original_lines = text.split('\n')
-            response_lines = response.split('\n')
+            original_lines = text.strip().split('\n')
+            response_lines = response.strip().split('\n')
 
             aligner = Aligner(original_lines, response_lines)
             response_lines = aligner.align()
             response = "\n".join(response_lines)
         elif response_line_count > original_line_count:
             logger.info("Extra %d line(s)", response_line_count - original_line_count)
-
-        for index, _ in enumerate(original_lines):
-            logger.debug("[%d]", index)
-            logger.debug("%s", original_lines[index])
-            if len(response_lines) > index:
-                logger.debug("%s", response_lines[index])
 
         time.sleep(self.relax_time)
 
